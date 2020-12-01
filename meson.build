@@ -226,6 +226,7 @@ if get_option('curl')
     conf.set('HAVE_LIBCURL_7_62_0', '1')
   endif
 endif
+libgnutls = dependency('gnutls', version : '>= 3.6.0')
 if build_daemon
   if get_option('polkit')
     polkit = dependency('polkit-gobject-1', version : '>= 0.103')
@@ -487,6 +488,7 @@ if build_standalone
   plugin_deps += libarchive
   plugin_deps += gudev
   plugin_deps += libjsonglib
+  plugin_deps += libgnutls
 endif
 
 root_incdir = include_directories('.')

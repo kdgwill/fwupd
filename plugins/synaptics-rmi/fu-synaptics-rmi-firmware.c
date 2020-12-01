@@ -31,6 +31,9 @@ struct _FuSynapticsRmiFirmware {
 	guint32			 package_id;
 	guint16			 product_info;
 	gchar			*product_id;
+	guint8			 blv5_signature_present;
+	guint32			 blv5_signature_size;
+	guint32			 firmware_size;
 };
 
 G_DEFINE_TYPE (FuSynapticsRmiFirmware, fu_synaptics_rmi_firmware, FU_TYPE_FIRMWARE)
@@ -45,6 +48,9 @@ G_DEFINE_TYPE (FuSynapticsRmiFirmware, fu_synaptics_rmi_firmware, FU_TYPE_FIRMWA
 #define RMI_IMG_PRODUCT_ID_OFFSET		0x10
 #define RMI_IMG_PRODUCT_INFO_OFFSET		0x1e
 #define RMI_IMG_FW_OFFSET			0x100
+
+#define RMI_IMG_SIGNATURE_SIZE_OFFSET   0x54
+#define RMI_IMG_SIGNATURE_SIZE_SIZE     4
 
 #define RMI_IMG_V10_CNTR_ADDR_OFFSET		0x0c
 
@@ -174,6 +180,8 @@ fu_synaptics_rmi_firmware_to_string (FuFirmware *firmware, guint idt, GString *s
 	fu_common_string_append_kx (str, idt, "BuildId", self->build_id);
 	fu_common_string_append_kx (str, idt, "PackageId", self->package_id);
 	fu_common_string_append_kx (str, idt, "ProductInfo", self->product_info);
+	fu_common_string_append_kx (str, idt, "SignatureSize", self->blv5_signature_size);
+	fu_common_string_append_kx (str, idt, "FirmwareSize", self->firmware_size);
 }
 
 static gboolean
@@ -425,6 +433,12 @@ fu_synaptics_rmi_firmware_parse (FuFirmware *firmware,
 					 G_LITTLE_ENDIAN,
 					 error))
 		return FALSE;
+	if (!fu_common_read_uint32_safe (data, sz,
+					 RMI_IMG_IMAGE_SIZE_OFFSET,
+					 &self->firmware_size,
+					 G_LITTLE_ENDIAN,
+					 error))
+		return FALSE;
 
 	/* parse partitions, but ignore lockdown */
 	switch (self->bootloader_version) {
@@ -436,6 +450,14 @@ fu_synaptics_rmi_firmware_parse (FuFirmware *firmware,
 		if (!fu_synaptics_rmi_firmware_parse_v0x (firmware, fw, error))
 			return FALSE;
 		self->kind = RMI_FIRMWARE_KIND_0X;
+		self->blv5_signature_present = (self->io & 0x10) >> 1;
+		if (self->blv5_signature_present) {
+			for (guint i = 0 ; i < RMI_IMG_SIGNATURE_SIZE_SIZE; i++) {
+				self->blv5_signature_size |= (data[RMI_IMG_SIGNATURE_SIZE_OFFSET + i] & 0x00FF) << (8 * i);
+			}
+		} else {
+			self->blv5_signature_size = 0;
+		}
 		break;
 	case 16:
 		if (!fu_synaptics_rmi_firmware_parse_v10 (firmware, fw, error))
@@ -453,6 +475,18 @@ fu_synaptics_rmi_firmware_parse (FuFirmware *firmware,
 
 	/* success */
 	return TRUE;
+}
+
+guint32
+fu_synaptics_rmi_firmware_get_signature_size (FuSynapticsRmiFirmware *self)
+{
+	return self->blv5_signature_size;
+}
+
+guint32
+fu_synaptics_rmi_firmware_get_firmware_size (FuSynapticsRmiFirmware *self)
+{
+	return self->firmware_size;
 }
 
 static GBytes *
