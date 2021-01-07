@@ -2696,6 +2696,9 @@ fu_engine_activate (FuEngine *self, const gchar *device_id, GError **error)
 	if (!fu_plugin_runner_activate (plugin, device, error))
 		return FALSE;
 
+	/* unconditionally do this on success */
+	fu_device_remove_flag (device, FWUPD_DEVICE_FLAG_NEEDS_ACTIVATION);
+
 	fu_engine_emit_device_changed (self, device);
 	fu_engine_emit_changed (self);
 
